@@ -32,7 +32,7 @@
   ],
   "action": {
     "default_popup": "popup.html",
-    "default_title": "Message Bookmarks"
+    "default_title": "AI Bookmarks"
   },
   "web_accessible_resources": [
     {
