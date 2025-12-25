@@ -1,4 +1,4 @@
-// Message Bookmark Navigator - Popup Script
+// AI Bookmark - Popup Script
 // Handles bookmark display and navigation
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -147,13 +147,16 @@ document.addEventListener('DOMContentLoaded', () => {
         // Send message to content script to scroll to bookmark
         chrome.tabs.sendMessage(currentTab.id, {
           action: 'scrollToBookmark',
-          bookmarkId: bookmark.id
+          bookmarkId: bookmark.id,
+          messageIndex: bookmark.messageIndex,
+          messageText: bookmark.messageText
         }, (response) => {
           if (response && response.success) {
             window.close(); // Close popup after navigation
           } else {
-            // If message not found on current page, open bookmark URL
-            chrome.tabs.update(currentTab.id, { url: bookmark.url });
+            // Show error message instead of reloading page
+            alert('Could not find the bookmarked message on the current page. It may have been deleted or you might be in a different conversation.\n\nClick OK to open the bookmark in a new tab.');
+            chrome.tabs.create({ url: bookmark.url });
           }
         });
       }

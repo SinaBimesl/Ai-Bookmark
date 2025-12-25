@@ -1,4 +1,4 @@
-// Message Bookmark Navigator - Content Script
+// AI Bookmark - Content Script
 // Detects platform, adds bookmark stars, handles storage
 
 (function() {
@@ -49,9 +49,9 @@
     });
   }
 
-  // Generate unique ID for message
-  function generateMessageId(element, index) {
-    return `${platform}-${index}-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+  // Generate stable ID for message (based on index, not timestamp)
+  function generateMessageId(index) {
+    return `${platform}-msg-${index}`;
   }
 
   // Extract message text
@@ -67,11 +67,14 @@
     }
     processedMessages.add(messageElement);
 
-    // Generate or retrieve message ID
-    if (!messageElement.dataset.bookmarkId) {
-      messageElement.dataset.bookmarkId = generateMessageId(messageElement, index);
-    }
-    const messageId = messageElement.dataset.bookmarkId;
+    // Generate stable message ID
+    const messageId = generateMessageId(index);
+    messageElement.dataset.bookmarkId = messageId;
+    messageElement.dataset.messageIndex = index;
+
+    // Create star container
+    const starContainer = document.createElement('div');
+    starContainer.className = 'bookmark-star-container';
 
     // Create star button
     const star = document.createElement('img');
@@ -89,16 +92,25 @@
     // Click handler
     star.addEventListener('click', (e) => {
       e.stopPropagation();
-      toggleBookmark(star, messageElement);
+      e.preventDefault();
+      toggleBookmark(star, messageElement, index);
     });
 
-    // Position the star
-    messageElement.style.position = 'relative';
-    messageElement.appendChild(star);
+    // Append star to container
+    starContainer.appendChild(star);
+
+    // Ensure message has position context
+    const computedStyle = window.getComputedStyle(messageElement);
+    if (computedStyle.position === 'static') {
+      messageElement.style.position = 'relative';
+    }
+
+    // Add container to message
+    messageElement.appendChild(starContainer);
   }
 
   // Toggle bookmark state
-  function toggleBookmark(star, messageElement) {
+  function toggleBookmark(star, messageElement, index) {
     const messageId = star.dataset.messageId;
     const isBookmarked = star.dataset.bookmarked === 'true';
 
@@ -115,7 +127,7 @@
         url: window.location.href,
         messageText: getMessageText(messageElement),
         timestamp: Date.now(),
-        messageIndex: Array.from(document.querySelectorAll(messageSelector)).indexOf(messageElement)
+        messageIndex: index
       };
       addBookmark(bookmark);
       star.src = chrome.runtime.getURL('icons/star-filled.png');
@@ -193,7 +205,32 @@
   // Listen for navigation requests from popup
   chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     if (request.action === 'scrollToBookmark') {
-      const messageElement = document.querySelector(`[data-bookmark-id="${request.bookmarkId}"]`);
+      // Try multiple strategies to find the message
+      let messageElement = null;
+
+      // Strategy 1: Find by bookmark ID
+      messageElement = document.querySelector(`[data-bookmark-id="${request.bookmarkId}"]`);
+
+      // Strategy 2: Find by message index
+      if (!messageElement && request.messageIndex !== undefined) {
+        const messages = document.querySelectorAll(messageSelector);
+        if (messages[request.messageIndex]) {
+          messageElement = messages[request.messageIndex];
+        }
+      }
+
+      // Strategy 3: Find by text content match
+      if (!messageElement && request.messageText) {
+        const messages = document.querySelectorAll(messageSelector);
+        for (const msg of messages) {
+          const text = getMessageText(msg);
+          if (text === request.messageText.substring(0, 200)) {
+            messageElement = msg;
+            break;
+          }
+        }
+      }
+
       if (messageElement) {
         messageElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
 
@@ -205,7 +242,7 @@
 
         sendResponse({ success: true });
       } else {
-        sendResponse({ success: false, error: 'Message not found' });
+        sendResponse({ success: false, error: 'Message not found on this page' });
       }
     }
     return true;
@@ -213,7 +250,7 @@
 
   // Initialize
   function init() {
-    console.log(`Message Bookmark Navigator loaded on ${platform}`);
+    console.log(`AI Bookmark loaded on ${platform}`);
     loadBookmarks();
 
     // Wait for initial content to load

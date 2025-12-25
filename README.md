@@ -1,4 +1,4 @@
-# Message Bookmark Navigator
+# AI Bookmark
 
 A lightweight browser extension that allows you to bookmark important messages on AI chat platforms and easily navigate between them.
 
@@ -27,7 +27,7 @@ A lightweight browser extension that allows you to bookmark important messages o
 2. Open Chrome/Edge and navigate to `chrome://extensions/`
 3. Enable "Developer mode" (toggle in top-right corner)
 4. Click "Load unpacked"
-5. Select the extension directory (`gpt-star`)
+5. Select the extension directory (`ai-bookmark`)
 6. The extension is now installed and ready to use
 
 ### For Developers (Firefox)
@@ -112,7 +112,7 @@ The extension automatically detects which platform you're on and uses the approp
 ## File Structure
 
 ```
-gpt-star/
+ai-bookmark/
 ├── manifest.json          # Extension configuration
 ├── content.js            # Content script for message detection
 ├── content.css           # Styles for bookmark stars
