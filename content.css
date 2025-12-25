@@ -1,0 +1,67 @@
+/* Message Bookmark Navigator - Content Styles */
+
+/* Bookmark star button */
+.bookmark-star {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  width: 24px;
+  height: 24px;
+  cursor: pointer;
+  opacity: 0.6;
+  transition: all 0.2s ease;
+  z-index: 1000;
+  filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.1));
+}
+
+.bookmark-star:hover {
+  opacity: 1;
+  transform: scale(1.1);
+}
+
+.bookmark-star:active {
+  transform: scale(0.95);
+}
+
+/* Highlight effect when navigating to bookmark */
+@keyframes bookmark-highlight {
+  0% {
+    background-color: rgba(255, 215, 0, 0.3);
+    box-shadow: 0 0 0 0 rgba(255, 215, 0, 0.6);
+  }
+  50% {
+    background-color: rgba(255, 215, 0, 0.2);
+    box-shadow: 0 0 0 10px rgba(255, 215, 0, 0);
+  }
+  100% {
+    background-color: transparent;
+    box-shadow: 0 0 0 0 rgba(255, 215, 0, 0);
+  }
+}
+
+.bookmark-highlight {
+  animation: bookmark-highlight 2s ease-out;
+  border-radius: 8px;
+}
+
+/* Platform-specific adjustments */
+
+/* ChatGPT */
+article[data-testid] .bookmark-star {
+  right: 12px;
+  top: 12px;
+}
+
+/* Claude */
+div[data-testid*="message"] .bookmark-star,
+div.font-claude-message .bookmark-star {
+  right: 16px;
+  top: 16px;
+}
+
+/* DeepSeek */
+div.message .bookmark-star,
+div[class*="message"] .bookmark-star {
+  right: 12px;
+  top: 12px;
+}
