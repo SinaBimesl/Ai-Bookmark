@@ -1,6 +1,6 @@
 {
   "manifest_version": 3,
-  "name": "Message Bookmark Navigator",
+  "name": "AI Bookmark",
   "version": "1.0.0",
   "description": "Bookmark and navigate important messages on ChatGPT, Claude, and DeepSeek",
   "permissions": [
