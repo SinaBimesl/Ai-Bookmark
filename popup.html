@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Message Bookmarks</title>
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <div class="container">
+    <header>
+      <h1>Message Bookmarks</h1>
+      <div class="stats">
+        <span id="bookmark-count">0 bookmarks</span>
+      </div>
+    </header>
+
+    <div id="empty-state" class="empty-state">
+      <img src="icons/star-empty.png" alt="No bookmarks" class="empty-icon">
+      <p>No bookmarks yet</p>
+      <p class="hint">Click the star icon on any message to bookmark it</p>
+    </div>
+
+    <div id="bookmark-list" class="bookmark-list"></div>
+
+    <footer>
+      <button id="clear-all" class="btn-secondary">Clear All</button>
+    </footer>
+  </div>
+
+  <script src="popup.js"></script>
+</body>
+</html>
