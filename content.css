@@ -2,11 +2,11 @@
 
 /* Bookmark star container */
 .bookmark-star-container {
-  position: absolute;
-  top: 8px;
-  right: 8px;
-  z-index: 10000;
-  pointer-events: auto;
+  position: absolute !important;
+  top: 8px !important;
+  right: 8px !important;
+  z-index: 10000 !important;
+  pointer-events: auto !important;
   line-height: 0;
 }
 
@@ -60,10 +60,10 @@ article[data-testid^="conversation-turn"] .bookmark-star-container {
 }
 
 /* Claude - position near avatar area */
-div[data-testid*="message"] .bookmark-star-container,
-div.font-claude-message .bookmark-star-container {
-  top: 12px;
-  right: 12px;
+[class*="font-claude-message"] .bookmark-star-container,
+[class*="MessageContent"] .bookmark-star-container {
+  top: 8px !important;
+  right: 8px !important;
 }
 
 /* DeepSeek - position in header area */

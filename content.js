@@ -14,7 +14,8 @@
     messageSelector = 'article[data-testid^="conversation-turn"]';
   } else if (hostname.includes('claude.ai')) {
     platform = 'claude.ai';
-    messageSelector = 'div[data-testid*="message"], div.font-claude-message';
+    // Target the actual message content containers, not the outer wrappers
+    messageSelector = '[class*="font-claude-message"], [class*="MessageContent"]';
   } else if (hostname.includes('deepseek.com')) {
     platform = 'chat.deepseek.com';
     messageSelector = 'div.message, div[class*="message"]';
@@ -104,6 +105,9 @@
     if (computedStyle.position === 'static') {
       messageElement.style.position = 'relative';
     }
+
+    // Add important flag to ensure positioning works
+    messageElement.style.setProperty('position', 'relative', 'important');
 
     // Add container to message
     messageElement.appendChild(starContainer);
