@@ -3,8 +3,8 @@
 /* Bookmark star container */
 .bookmark-star-container {
   position: absolute;
-  top: 8px;
-  right: 8px;
+  top: 6px;
+  right: 6px;
   z-index: 1000;
   pointer-events: auto;
   line-height: 0;
@@ -55,20 +55,20 @@
 
 /* ChatGPT - position near message header */
 article[data-testid^="conversation-turn"] .bookmark-star-container {
-  top: 10px;
-  right: 10px;
+  top: 6px;
+  right: 6px;
 }
 
 /* Claude - position near avatar area */
 div[data-testid*="message"] .bookmark-star-container,
 div.font-claude-message .bookmark-star-container {
-  top: 8px;
-  right: 8px;
+  top: 6px;
+  right: 6px;
 }
 
 /* DeepSeek - position in header area */
 div.message .bookmark-star-container,
 div[class*="message"] .bookmark-star-container {
-  top: 10px;
-  right: 10px;
+  top: 6px;
+  right: 6px;
 }
