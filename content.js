@@ -15,8 +15,8 @@
   } else if (hostname.includes('claude.ai')) {
     platform = 'claude.ai';
     // Target each conversation turn/message block in Claude
-    // Uses the grid-based layout containers that hold each message
-    messageSelector = 'div.grid-cols-1.grid > div, [class*="ConversationItem"], [class*="turn-"], div[data-index], .group\\/turn, div.relative.mb-4, div.mb-4.relative';
+    // Use data-testid which reliably identifies conversation turns
+    messageSelector = '[data-testid^="user-message"], [data-testid^="assistant-message"], [data-testid="user-human-turn"], [data-testid="assistant-turn"]';
   } else if (hostname.includes('deepseek.com')) {
     platform = 'chat.deepseek.com';
     messageSelector = 'div.message, div[class*="message"]';
