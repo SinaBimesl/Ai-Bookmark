@@ -15,8 +15,10 @@
   } else if (hostname.includes('claude.ai')) {
     platform = 'claude.ai';
     // Target each conversation turn/message block in Claude
-    // Claude uses a specific structure - we need to be very selective
-    messageSelector = 'DISABLED_FOR_NOW';
+    // User turns: div.mb-1.mt-6.group (contains the user's message bubble)
+    // Claude turns: div.group > div.group.relative.pb-3 (Claude's response)
+    // We target the parent containers that represent full turns
+    messageSelector = 'div.mb-1.mt-6.group, div.group.relative.pb-3';
   } else if (hostname.includes('deepseek.com')) {
     platform = 'chat.deepseek.com';
     messageSelector = 'div.message, div[class*="message"]';
