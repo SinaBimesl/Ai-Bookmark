@@ -15,8 +15,8 @@
   } else if (hostname.includes('claude.ai')) {
     platform = 'claude.ai';
     // Target each conversation turn/message block in Claude
-    // Use data-testid which reliably identifies conversation turns
-    messageSelector = '[data-testid^="user-message"], [data-testid^="assistant-message"], [data-testid="user-human-turn"], [data-testid="assistant-turn"]';
+    // Claude uses a specific structure - we need to be very selective
+    messageSelector = 'DISABLED_FOR_NOW';
   } else if (hostname.includes('deepseek.com')) {
     platform = 'chat.deepseek.com';
     messageSelector = 'div.message, div[class*="message"]';
