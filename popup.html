@@ -10,24 +10,55 @@
   <div class="container">
     <header>
       <h1>AI Bookmarks</h1>
-      <div class="stats">
-        <span id="bookmark-count">0 bookmarks</span>
-      </div>
+      <div class="stats" id="bookmark-count">0 bookmarks</div>
     </header>
 
-    <div id="empty-state" class="empty-state">
-      <img src="icons/star-empty.png" alt="No bookmarks" class="empty-icon">
-      <p>No bookmarks yet</p>
-      <p class="hint">Click the star icon on any message to bookmark it</p>
+    <div class="toolbar">
+      <label class="visually-hidden" for="search">Search bookmarks</label>
+      <input
+        id="search"
+        class="search-input"
+        type="search"
+        placeholder="Search bookmarks…"
+        autocomplete="off"
+        spellcheck="false">
     </div>
 
-    <div id="bookmark-list" class="bookmark-list"></div>
+    <p id="status" class="status" role="alert" hidden></p>
+
+    <main class="content">
+      <div id="empty-state" class="empty-state" hidden>
+        <img src="icons/star-empty.png" alt="" class="empty-icon">
+        <p>No bookmarks yet</p>
+        <p class="hint">Click the star on any message to bookmark it</p>
+      </div>
+
+      <div id="no-results" class="empty-state" hidden>
+        <p>No matching bookmarks</p>
+        <p class="hint">Try a different search term</p>
+      </div>
+
+      <ul id="bookmark-list" class="bookmark-list" hidden></ul>
+    </main>
 
     <footer>
-      <button id="clear-all" class="btn-secondary">Clear All</button>
+      <div id="confirm-bar" class="confirm-bar" hidden>
+        <span class="confirm-text">Delete all bookmarks?</span>
+        <div class="confirm-actions">
+          <button id="cancel-clear" type="button" class="btn-secondary">Cancel</button>
+          <button id="confirm-clear" type="button" class="btn-danger">Delete all</button>
+        </div>
+      </div>
+      <button id="clear-all" type="button" class="btn-secondary">Clear All</button>
     </footer>
+
+    <div id="toast" class="toast" role="status" hidden>
+      <span id="toast-text" class="toast-text"></span>
+      <button id="toast-action" type="button" class="toast-action" hidden>Undo</button>
+    </div>
   </div>
 
+  <script src="lib/core.js"></script>
   <script src="popup.js"></script>
 </body>
 </html>

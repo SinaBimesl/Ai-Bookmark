@@ -1,17 +1,18 @@
 # AI Bookmark
 
-A lightweight browser extension that allows you to bookmark important messages on AI chat platforms and easily navigate between them.
+A lightweight browser extension that lets you bookmark important messages on AI chat platforms and jump straight back to them.
 
 ## Features
 
-- **Multi-Platform Support**: Works seamlessly with ChatGPT, Claude, and DeepSeek
-- **One-Click Bookmarking**: Click the star icon on any message to bookmark it
-- **Visual Feedback**: Outlined star for unbookmarked messages, filled star for bookmarked ones
-- **Persistent Storage**: All bookmarks are saved locally and persist across browser sessions
-- **Easy Navigation**: Browse all bookmarks in the popup and jump to any message
-- **Smart Highlighting**: Automatically highlights the target message when navigating
-- **Dynamic Content Support**: Works with dynamically loaded messages
-- **Clean UI**: Modern, intuitive interface with platform badges
+- **Multi-Platform Support**: ChatGPT, Claude, and DeepSeek
+- **One-Click Bookmarking**: Click the star on any message to bookmark it
+- **Stable Bookmarks**: Bookmarks are anchored to message content and the conversation they belong to, so they survive page reloads and lazily loaded history
+- **Smart Navigation**: Reuses a tab already showing the conversation, otherwise opens it, waits for it to load, then scrolls and highlights the message
+- **Search**: Filter bookmarks by message text, platform, or URL
+- **Undo**: Deleting a bookmark (or clearing them all) can be undone from the popup
+- **Live Sync**: Stars, the popup list, and the toolbar badge all stay in sync
+- **Keyboard Accessible**: Stars are real buttons with `aria-pressed` state
+- **Dark Mode**: The popup follows the system colour scheme
 
 ## Supported Platforms
 
@@ -21,157 +22,172 @@ A lightweight browser extension that allows you to bookmark important messages o
 
 ## Installation
 
-### For Developers (Chrome/Edge)
+### Chrome / Edge
 
 1. Clone or download this repository
-2. Open Chrome/Edge and navigate to `chrome://extensions/`
-3. Enable "Developer mode" (toggle in top-right corner)
-4. Click "Load unpacked"
-5. Select the extension directory (`ai-bookmark`)
-6. The extension is now installed and ready to use
+2. Open `chrome://extensions/`
+3. Enable **Developer mode**
+4. Click **Load unpacked** and select the extension directory
 
-### For Developers (Firefox)
-
-1. Clone or download this repository
-2. Open Firefox and navigate to `about:debugging#/runtime/this-firefox`
-3. Click "Load Temporary Add-on"
-4. Select the `manifest.json` file from the extension directory
-5. The extension is now installed temporarily
+> **Firefox note:** the manifest uses `background.service_worker`, which Firefox does not yet support in MV3. Firefox needs a `background.scripts` variant of the manifest.
 
 ## Usage
 
-### Bookmarking Messages
+### Bookmarking
 
-1. Visit any supported platform (ChatGPT, Claude, or DeepSeek)
-2. Hover over any message to see the star icon in the top-right corner
-3. Click the star to bookmark the message (it will turn filled)
-4. Click again to remove the bookmark (it will turn outlined)
+Hover a message and click the star in its top-right corner. A filled star means the message is bookmarked; click again to remove it. While a response is still streaming the star is temporarily disabled, so a bookmark never captures half an answer.
 
-### Viewing Bookmarks
+### Viewing and searching
 
-1. Click the extension icon in your browser toolbar
-2. All bookmarks will be displayed, grouped by recency
-3. Each bookmark shows:
-   - Platform badge (ChatGPT, Claude, or DeepSeek)
-   - Message preview (first 200 characters)
-   - Timestamp (e.g., "2h ago", "3d ago")
+Click the toolbar icon. Bookmarks are listed newest first with a platform badge, preview text, and relative timestamp. The badge on the toolbar icon shows the total count. Type in the search box to filter.
 
-### Navigating to Bookmarks
+### Navigating
 
-1. Open the extension popup
-2. Click the "Go" button next to any bookmark
-3. The page will scroll to that message and highlight it briefly
-4. If you're on a different platform, it will open the bookmark URL in a new tab
+Click **Go** (or the row itself):
 
-### Managing Bookmarks
+1. If a tab is already open on that conversation, it is focused and scrolled to the message.
+2. Otherwise the conversation opens in a new tab; once it finishes loading the extension scrolls to and highlights the message.
+3. If the message genuinely cannot be found, the popup says so instead of guessing.
 
-- **Delete a bookmark**: Click the "×" button next to any bookmark
-- **Clear all bookmarks**: Click the "Clear All" button at the bottom of the popup
+### Managing
+
+- **Delete**: the **×** button, with an **Undo** in the toast that follows
+- **Clear all**: **Clear All**, confirmed inline in the popup (also undoable)
 
 ## Technical Details
 
 ### Architecture
 
-- **Manifest V3**: Modern Chrome extension architecture
-- **Content Script** (`content.js`): Injects bookmark functionality into pages
-- **Background Service Worker** (`background.js`): Handles message passing and storage
-- **Popup** (`popup.html`, `popup.js`): User interface for managing bookmarks
-- **Storage**: Uses `chrome.storage.local` for persistent bookmark data
+```
+lib/core.js        Pure logic: platform registry, id generation, store
+                   normalization, formatting. No DOM, no chrome.* calls.
+lib/store.js       Storage layer. Serializes every read-modify-write on a
+                   promise queue so concurrent writes cannot clobber each other.
+lib/handlers.js    Message-router handlers, shared by the worker and the tests.
+background.js      Service worker: owns storage, routes messages, orchestrates
+                   navigation, keeps the badge current.
+content.js         Injects stars, tracks SPA navigation, answers scroll requests.
+popup.js           List UI, search, undo, live storage sync.
+```
 
-### Storage Format
+`lib/core.js` is a UMD module: it is loaded as a content script, via `importScripts` in the worker, via `<script>` in the popup, and via `require` in tests — one implementation everywhere.
+
+**The service worker is the only writer to `chrome.storage`.** Content scripts and the popup send messages instead of writing directly, which removes the read-modify-write races that lose bookmarks when two tabs act at the same time.
+
+### Message ids
+
+An id looks like:
+
+```
+v2|claude.ai|<conversationId>|<textHash>|<occurrence>
+```
+
+- **conversationId** is parsed from the URL, so message #3 in one chat never collides with message #3 in another.
+- **textHash** is an FNV-1a hash of the normalized first 200 characters, so ids do not shift when older messages load in above.
+- **occurrence** disambiguates messages whose preview text is identical.
+
+v1 ids (`claude.ai-msg-3`) are migrated automatically on first run: the conversation id is recovered from the stored URL and duplicate rows are collapsed.
+
+### Storage format
 
 ```javascript
 {
+  "schemaVersion": 2,
   "bookmarks": {
-    "chatgpt.com": [
+    "claude.ai": [
       {
-        "id": "unique-id",
-        "url": "conversation-url",
-        "messageText": "preview text...",
-        "timestamp": 1703502000000,
-        "messageIndex": 5
+        "id": "v2|claude.ai|conv-1|1a2b3c4d|0",
+        "platform": "claude.ai",
+        "conversationId": "conv-1",
+        "url": "https://claude.ai/chat/conv-1",
+        "title": "Conversation title",
+        "messageText": "preview text…",
+        "textHash": "1a2b3c4d",
+        "occurrence": 0,
+        "messageIndex": 5,
+        "timestamp": 1703502000000
       }
     ],
-    "claude.ai": [...],
-    "chat.deepseek.com": [...]
+    "chatgpt.com": [],
+    "chat.deepseek.com": []
   }
 }
 ```
 
-### Dynamic Content Handling
+Anything malformed in storage is dropped on read rather than breaking the popup.
 
-The extension uses `MutationObserver` to detect when new messages are added to the page, ensuring that bookmark functionality is available even for dynamically loaded content.
+### Finding messages
 
-### Platform Detection
+Each platform declares an ordered list of candidate selectors; the content script uses the most specific one that actually matches the live page, so a markup change on one platform degrades instead of breaking. Nested matches are reduced to the outermost element, which is what keeps DeepSeek from getting a star per nesting level.
 
-The extension automatically detects which platform you're on and uses the appropriate selectors:
-- **ChatGPT**: `article[data-testid^="conversation-turn"]`
-- **Claude**: `div[data-testid*="message"]`
-- **DeepSeek**: `div.message` or `div[class*="message"]`
+When scrolling to a bookmark, the content script tries, in order: exact id → content hash + occurrence → preview text → DOM index (only within the same conversation), retrying for a few seconds while the SPA renders. It never falls back to a positional guess across conversations.
 
-## File Structure
+## Development
 
+```bash
+npm install     # jsdom, for the DOM tests
+npm run lint    # syntax, manifest integrity, asset references
+npm test        # 90 tests
+npm run check   # both
+npm run smoke   # optional: real headless Chromium end-to-end run
 ```
-ai-bookmark/
-├── manifest.json          # Extension configuration
-├── content.js            # Content script for message detection
-├── content.css           # Styles for bookmark stars
-├── background.js         # Service worker for storage
-├── popup.html           # Popup UI structure
-├── popup.js             # Popup functionality
-├── popup.css            # Popup styling
-├── icons/
-│   ├── star-empty.png   # Outlined star icon
-│   └── star-filled.png  # Filled star icon
-├── GS128.png            # Extension icon
-├── README.md            # This file
-├── LICENSE              # License information
-└── .gitignore          # Git ignore rules
-```
+
+Tests are `node:test` + jsdom, with no build step:
+
+| File | Covers |
+| --- | --- |
+| `test/core.test.js` | platform detection, ids, store normalization, formatting |
+| `test/store.test.js` | write serialization, migration, storage error propagation |
+| `test/handlers.test.js` | message-router contract |
+| `test/content.test.js` | the real content script against simulated ChatGPT / Claude / DeepSeek DOMs |
+| `test/popup.test.js` | the real popup against the real handlers |
+| `test/background.test.js` | the real service worker in a VM with a mock `chrome` API |
+| `test/smoke/browser-smoke.js` | opt-in: the packed extension in headless Chromium against a stand-in chatgpt.com (needs `chromium` and `openssl`; skips cleanly without them) |
 
 ## Privacy
 
-- **No Data Collection**: This extension does not collect or transmit any user data
-- **Local Storage Only**: All bookmarks are stored locally on your device
-- **No External Servers**: No communication with external servers
-- **Open Source**: Full source code is available for review
+- **No Data Collection**: nothing is collected or transmitted
+- **Local Storage Only**: bookmarks live in `chrome.storage.local` on your device
+- **No External Servers**
+- **Open Source**
 
 ## Permissions
 
-The extension requires the following permissions:
-- `storage`: To save bookmarks locally
-- `activeTab`: To interact with the current tab
-- `scripting`: To inject bookmark functionality
-- `host_permissions`: To work on ChatGPT, Claude, and DeepSeek domains
+- `storage` — save bookmarks locally
+- `activeTab` — interact with the current tab
+- `scripting` — inject the content script into tabs that were open before the extension was installed
+- `host_permissions` — run on the supported chat domains only
+
+Extension resources are exposed only to the supported chat domains, not to every site.
 
 ## Limitations
 
-- Bookmarks are tied to message IDs generated by the extension, not the platform
-- If a conversation is deleted on the platform, the bookmark will still exist but won't navigate correctly
-- Platform UI changes may require selector updates
-- Temporary Firefox installation requires reload after browser restart
+- Bookmarks are anchored to message content; heavily edited or regenerated messages may need re-bookmarking
+- If a conversation is deleted on the platform, its bookmarks remain but cannot be navigated to
+- Platform markup changes may still require selector updates
+- Firefox needs a manifest variant (see Installation)
 
 ## Contributing
 
-Contributions are welcome! Please feel free to submit issues or pull requests.
+Issues and pull requests are welcome. Please run `npm run check` before submitting.
 
 ## License
 
-This project is licensed under the terms specified in the LICENSE file.
-
-## Support
-
-If you encounter any issues or have suggestions:
-1. Check if the platform's UI has changed (may require selector updates)
-2. Try reloading the extension
-3. Open an issue on GitHub with details about the problem
+See the LICENSE file.
 
 ## Changelog
 
+### Version 1.1.0
+
+- Conversation-scoped, content-derived message ids; v1 bookmarks are migrated automatically
+- All storage writes serialized through the service worker; duplicate bookmarks are no longer possible
+- Navigation reuses an existing tab, waits for load, and retries instead of guessing at a message
+- Stars are keyboard-accessible buttons and stay in sync with storage changes
+- SPA route changes are detected and stars rebuilt for the new conversation
+- Popup gains search, undo, inline confirmation, dark mode, and inline error reporting
+- Extension resources restricted to the supported domains
+- Added a lint script and a 90-test suite
+
 ### Version 1.0.0
+
 - Initial release
-- Support for ChatGPT, Claude, and DeepSeek
-- Bookmark functionality with star icons
-- Popup UI for navigation
-- Persistent storage
-- Dynamic content support

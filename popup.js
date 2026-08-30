@@ -1,82 +1,114 @@
 // AI Bookmark - Popup Script
-// Handles bookmark display and navigation
+//
+// Renders the bookmark list, delegates every mutation to the service worker,
+// and stays in sync with storage while it is open.
 
-document.addEventListener('DOMContentLoaded', () => {
-  const bookmarkList = document.getElementById('bookmark-list');
-  const emptyState = document.getElementById('empty-state');
-  const bookmarkCount = document.getElementById('bookmark-count');
-  const clearAllBtn = document.getElementById('clear-all');
+/* global AIBookmarkCore */
+(function () {
+  'use strict';
 
-  // Platform display names
-  const platformNames = {
-    'chatgpt.com': 'ChatGPT',
-    'claude.ai': 'Claude',
-    'chat.deepseek.com': 'DeepSeek'
+  const Core = window.AIBookmarkCore;
+
+  const el = {
+    list: document.getElementById('bookmark-list'),
+    emptyState: document.getElementById('empty-state'),
+    noResults: document.getElementById('no-results'),
+    count: document.getElementById('bookmark-count'),
+    search: document.getElementById('search'),
+    status: document.getElementById('status'),
+    clearAll: document.getElementById('clear-all'),
+    confirmBar: document.getElementById('confirm-bar'),
+    confirmClear: document.getElementById('confirm-clear'),
+    cancelClear: document.getElementById('cancel-clear'),
+    toast: document.getElementById('toast'),
+    toastText: document.getElementById('toast-text'),
+    toastAction: document.getElementById('toast-action')
   };
 
-  // Platform colors
-  const platformColors = {
-    'chatgpt.com': '#10a37f',
-    'claude.ai': '#cc785c',
-    'chat.deepseek.com': '#4a90e2'
-  };
+  let allBookmarks = [];
+  let query = '';
+  let statusTimer = null;
+  let toastTimer = null;
+  let undoHandler = null;
 
-  // Load and display bookmarks
-  function loadBookmarks() {
-    chrome.runtime.sendMessage({ action: 'getBookmarks' }, (response) => {
-      if (!response || !response.bookmarks) {
-        showEmptyState();
-        return;
-      }
+  /* ---------------------------------------------------------------- */
+  /* Messaging                                                         */
+  /* ---------------------------------------------------------------- */
 
-      const allBookmarks = [];
-      Object.keys(response.bookmarks).forEach(platform => {
-        response.bookmarks[platform].forEach(bookmark => {
-          allBookmarks.push({ ...bookmark, platform });
+  function sendMessage(message) {
+    return new Promise((resolve) => {
+      try {
+        chrome.runtime.sendMessage(message, (response) => {
+          if (chrome.runtime.lastError) {
+            resolve({ success: false, error: chrome.runtime.lastError.message });
+            return;
+          }
+          resolve(response || { success: false, error: 'No response from the extension.' });
         });
-      });
-
-      if (allBookmarks.length === 0) {
-        showEmptyState();
-        return;
+      } catch (err) {
+        resolve({ success: false, error: err && err.message ? err.message : String(err) });
       }
-
-      // Sort by timestamp (newest first)
-      allBookmarks.sort((a, b) => b.timestamp - a.timestamp);
-
-      displayBookmarks(allBookmarks);
-      updateCount(allBookmarks.length);
     });
   }
 
-  // Show empty state
-  function showEmptyState() {
-    emptyState.style.display = 'flex';
-    bookmarkList.style.display = 'none';
-    updateCount(0);
+  /* ---------------------------------------------------------------- */
+  /* Status + toast                                                    */
+  /* ---------------------------------------------------------------- */
+
+  function showStatus(message) {
+    el.status.textContent = message;
+    el.status.hidden = false;
+    clearTimeout(statusTimer);
+    statusTimer = setTimeout(() => {
+      el.status.hidden = true;
+    }, 6000);
   }
 
-  // Display bookmarks
-  function displayBookmarks(bookmarks) {
-    emptyState.style.display = 'none';
-    bookmarkList.style.display = 'block';
-    bookmarkList.innerHTML = '';
-
-    bookmarks.forEach(bookmark => {
-      const item = createBookmarkItem(bookmark);
-      bookmarkList.appendChild(item);
-    });
+  function hideToast() {
+    clearTimeout(toastTimer);
+    el.toast.hidden = true;
+    el.toastAction.hidden = true;
+    undoHandler = null;
   }
 
-  // Create bookmark item element
+  function showToast(message, onUndo) {
+    el.toastText.textContent = message;
+    el.toast.hidden = false;
+    undoHandler = onUndo || null;
+    el.toastAction.hidden = !undoHandler;
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(hideToast, 6000);
+  }
+
+  el.toastAction.addEventListener('click', () => {
+    const handler = undoHandler;
+    hideToast();
+    if (handler) handler();
+  });
+
+  /* ---------------------------------------------------------------- */
+  /* Rendering                                                         */
+  /* ---------------------------------------------------------------- */
+
+  function updateCount(count) {
+    el.count.textContent = `${count} bookmark${count === 1 ? '' : 's'}`;
+  }
+
+  function conversationLabel(bookmark) {
+    if (bookmark.title) return bookmark.title;
+    const parsed = Core.parseUrl(bookmark.url);
+    return parsed ? parsed.hostname + parsed.pathname : '';
+  }
+
   function createBookmarkItem(bookmark) {
-    const item = document.createElement('div');
+    const item = document.createElement('li');
     item.className = 'bookmark-item';
+    item.dataset.id = bookmark.id;
 
-    const platformBadge = document.createElement('div');
-    platformBadge.className = 'platform-badge';
-    platformBadge.textContent = platformNames[bookmark.platform] || bookmark.platform;
-    platformBadge.style.backgroundColor = platformColors[bookmark.platform] || '#666';
+    const badge = document.createElement('span');
+    badge.className = 'platform-badge';
+    badge.textContent = Core.platformLabel(bookmark.platform);
+    badge.style.backgroundColor = Core.platformColor(bookmark.platform);
 
     const content = document.createElement('div');
     content.className = 'bookmark-content';
@@ -84,11 +116,23 @@ document.addEventListener('DOMContentLoaded', () => {
     const text = document.createElement('div');
     text.className = 'bookmark-text';
     text.textContent = bookmark.messageText || 'No preview available';
+    text.title = bookmark.messageText || '';
 
     const meta = document.createElement('div');
     meta.className = 'bookmark-meta';
-    const date = new Date(bookmark.timestamp);
-    meta.textContent = formatDate(date);
+    meta.textContent = Core.formatRelativeTime(bookmark.timestamp);
+    const context = conversationLabel(bookmark);
+    if (context) {
+      const separator = document.createElement('span');
+      separator.className = 'meta-sep';
+      separator.textContent = '·';
+      const source = document.createElement('span');
+      source.className = 'meta-source';
+      source.textContent = context;
+      source.title = bookmark.url || '';
+      meta.appendChild(separator);
+      meta.appendChild(source);
+    }
 
     content.appendChild(text);
     content.appendChild(meta);
@@ -97,107 +141,175 @@ document.addEventListener('DOMContentLoaded', () => {
     actions.className = 'bookmark-actions';
 
     const goBtn = document.createElement('button');
+    goBtn.type = 'button';
     goBtn.className = 'btn-go';
     goBtn.textContent = 'Go';
-    goBtn.title = 'Navigate to this bookmark';
-    goBtn.addEventListener('click', () => navigateToBookmark(bookmark));
+    goBtn.title = 'Open this message';
+    goBtn.setAttribute('aria-label', 'Open this bookmarked message');
+    goBtn.addEventListener('click', (event) => {
+      event.stopPropagation();
+      navigateToBookmark(bookmark, goBtn);
+    });
 
     const deleteBtn = document.createElement('button');
+    deleteBtn.type = 'button';
     deleteBtn.className = 'btn-delete';
     deleteBtn.textContent = '×';
     deleteBtn.title = 'Delete bookmark';
-    deleteBtn.addEventListener('click', () => deleteBookmark(bookmark));
+    deleteBtn.setAttribute('aria-label', 'Delete this bookmark');
+    deleteBtn.addEventListener('click', (event) => {
+      event.stopPropagation();
+      deleteBookmark(bookmark);
+    });
 
     actions.appendChild(goBtn);
     actions.appendChild(deleteBtn);
 
-    item.appendChild(platformBadge);
+    item.appendChild(badge);
     item.appendChild(content);
     item.appendChild(actions);
+
+    // The whole row is a click target, which matches what people expect from a
+    // bookmark list.
+    content.addEventListener('click', () => navigateToBookmark(bookmark, goBtn));
 
     return item;
   }
 
-  // Format date
-  function formatDate(date) {
-    const now = new Date();
-    const diffMs = now - date;
-    const diffMins = Math.floor(diffMs / 60000);
-    const diffHours = Math.floor(diffMs / 3600000);
-    const diffDays = Math.floor(diffMs / 86400000);
+  function render() {
+    const visible = Core.filterBookmarks(allBookmarks, query);
+    updateCount(allBookmarks.length);
 
-    if (diffMins < 1) return 'Just now';
-    if (diffMins < 60) return `${diffMins}m ago`;
-    if (diffHours < 24) return `${diffHours}h ago`;
-    if (diffDays < 7) return `${diffDays}d ago`;
+    const hasAny = allBookmarks.length > 0;
+    const hasVisible = visible.length > 0;
 
-    return date.toLocaleDateString();
+    el.emptyState.hidden = hasAny;
+    el.noResults.hidden = !hasAny || hasVisible;
+    el.list.hidden = !hasVisible;
+    el.clearAll.disabled = !hasAny;
+
+    const fragment = document.createDocumentFragment();
+    for (const bookmark of visible) fragment.appendChild(createBookmarkItem(bookmark));
+    el.list.replaceChildren(fragment);
   }
 
-  // Navigate to bookmark
-  function navigateToBookmark(bookmark) {
-    chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
-      const currentTab = tabs[0];
-
-      // Check if we're on the right platform
-      if (!currentTab.url.includes(bookmark.platform)) {
-        // Open the bookmark URL in new tab
-        chrome.tabs.create({ url: bookmark.url });
-      } else {
-        // Send message to content script to scroll to bookmark
-        chrome.tabs.sendMessage(currentTab.id, {
-          action: 'scrollToBookmark',
-          bookmarkId: bookmark.id,
-          messageIndex: bookmark.messageIndex,
-          messageText: bookmark.messageText
-        }, (response) => {
-          if (response && response.success) {
-            window.close(); // Close popup after navigation
-          } else {
-            // Show error message instead of reloading page
-            alert('Could not find the bookmarked message on the current page. It may have been deleted or you might be in a different conversation.\n\nClick OK to open the bookmark in a new tab.');
-            chrome.tabs.create({ url: bookmark.url });
-          }
-        });
-      }
-    });
-  }
-
-  // Delete bookmark
-  function deleteBookmark(bookmark) {
-    if (!confirm('Delete this bookmark?')) {
+  async function loadBookmarks() {
+    const response = await sendMessage({ action: 'getBookmarks' });
+    if (!response || response.success === false || !response.bookmarks) {
+      allBookmarks = [];
+      render();
+      showStatus(
+        (response && response.error) || 'Could not read bookmarks. Try reloading the extension.'
+      );
       return;
     }
+    allBookmarks = Core.flattenBookmarks(Core.normalizeStore(response.bookmarks));
+    render();
+  }
 
-    chrome.runtime.sendMessage({
-      action: 'deleteBookmark',
+  /* ---------------------------------------------------------------- */
+  /* Actions                                                           */
+  /* ---------------------------------------------------------------- */
+
+  async function navigateToBookmark(bookmark, button) {
+    if (button) button.disabled = true;
+    const response = await sendMessage({ action: 'openBookmark', bookmark });
+    if (button) button.disabled = false;
+
+    if (response && response.success) {
+      window.close();
+      return;
+    }
+    showStatus(
+      (response && response.error) ||
+        'Could not find that message. The conversation may have changed.'
+    );
+  }
+
+  async function deleteBookmark(bookmark) {
+    const response = await sendMessage({
+      action: 'removeBookmark',
       platform: bookmark.platform,
       bookmarkId: bookmark.id
-    }, (response) => {
-      if (response && response.success) {
-        loadBookmarks(); // Reload list
-      }
     });
-  }
 
-  // Update bookmark count
-  function updateCount(count) {
-    bookmarkCount.textContent = `${count} bookmark${count !== 1 ? 's' : ''}`;
-  }
-
-  // Clear all bookmarks
-  clearAllBtn.addEventListener('click', () => {
-    if (!confirm('Delete all bookmarks? This cannot be undone.')) {
+    if (!response || response.success === false) {
+      showStatus((response && response.error) || 'Could not delete that bookmark.');
       return;
     }
 
-    chrome.runtime.sendMessage({ action: 'clearAllBookmarks' }, (response) => {
-      if (response && response.success) {
-        loadBookmarks();
+    // Optimistic local update; the storage listener will reconcile.
+    allBookmarks = allBookmarks.filter((b) => b.id !== bookmark.id);
+    render();
+
+    showToast('Bookmark deleted.', async () => {
+      const restore = await sendMessage({ action: 'restoreBookmark', bookmark });
+      if (!restore || restore.success === false) {
+        showStatus('Could not restore that bookmark.');
+        return;
       }
+      loadBookmarks();
+    });
+  }
+
+  el.search.addEventListener('input', () => {
+    query = el.search.value;
+    render();
+  });
+
+  el.search.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape' && el.search.value) {
+      event.stopPropagation();
+      el.search.value = '';
+      query = '';
+      render();
+    }
+  });
+
+  el.clearAll.addEventListener('click', () => {
+    el.confirmBar.hidden = false;
+    el.clearAll.hidden = true;
+    el.confirmClear.focus();
+  });
+
+  el.cancelClear.addEventListener('click', () => {
+    el.confirmBar.hidden = true;
+    el.clearAll.hidden = false;
+    el.clearAll.focus();
+  });
+
+  el.confirmClear.addEventListener('click', async () => {
+    const snapshot = allBookmarks.slice();
+    el.confirmBar.hidden = true;
+    el.clearAll.hidden = false;
+
+    const response = await sendMessage({ action: 'clearAllBookmarks' });
+    if (!response || response.success === false) {
+      showStatus((response && response.error) || 'Could not clear bookmarks.');
+      return;
+    }
+
+    allBookmarks = [];
+    render();
+    showToast(`Deleted ${snapshot.length} bookmark${snapshot.length === 1 ? '' : 's'}.`, async () => {
+      for (const bookmark of snapshot) {
+        await sendMessage({ action: 'restoreBookmark', bookmark });
+      }
+      loadBookmarks();
     });
   });
 
-  // Initial load
+  // Keep the list correct when a page adds or removes a bookmark while the
+  // popup is open.
+  if (chrome.storage && chrome.storage.onChanged) {
+    chrome.storage.onChanged.addListener((changes, areaName) => {
+      if (areaName !== 'local' || !changes[Core.STORAGE_KEYS.bookmarks]) return;
+      allBookmarks = Core.flattenBookmarks(
+        Core.normalizeStore(changes[Core.STORAGE_KEYS.bookmarks].newValue)
+      );
+      render();
+    });
+  }
+
   loadBookmarks();
-});
+})();

@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "AI Bookmark",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Bookmark and navigate important messages on ChatGPT, Claude, and DeepSeek",
   "permissions": [
     "storage",
@@ -25,7 +25,7 @@
         "https://claude.ai/*",
         "https://chat.deepseek.com/*"
       ],
-      "js": ["content.js"],
+      "js": ["lib/core.js", "content.js"],
       "css": ["content.css"],
       "run_at": "document_idle"
     }
@@ -37,7 +37,12 @@
   "web_accessible_resources": [
     {
       "resources": ["icons/star-empty.png", "icons/star-filled.png"],
-      "matches": ["<all_urls>"]
+      "matches": [
+        "https://chat.openai.com/*",
+        "https://chatgpt.com/*",
+        "https://claude.ai/*",
+        "https://chat.deepseek.com/*"
+      ]
     }
   ],
   "icons": {

@@ -1,39 +1,96 @@
-/* AI Bookmark - Content Styles */
+/* AI Bookmark - Content Styles
+ *
+ * Class names are prefixed with `ai-bm-` so they cannot collide with the host
+ * page's own utility classes, and every declaration is explicit enough to
+ * survive an aggressive `* { ... }` reset on the page.
+ */
 
-/* Bookmark star container */
-.bookmark-star-container {
+.ai-bm-star-container {
   position: absolute !important;
   top: 8px !important;
   right: 8px !important;
-  z-index: 10000 !important;
+  z-index: 2147483000 !important;
+  line-height: 0 !important;
+  margin: 0 !important;
+  padding: 0 !important;
   pointer-events: auto !important;
-  line-height: 0;
 }
 
-/* Bookmark star button */
-.bookmark-star {
+.ai-bm-star {
+  all: unset;
+  box-sizing: border-box;
+  display: block;
+  width: 28px;
+  height: 28px;
+  padding: 2px;
+  border-radius: 6px;
+  cursor: pointer;
+  opacity: 0.45;
+  transition: opacity 0.15s ease, transform 0.15s ease, background-color 0.15s ease;
+}
+
+.ai-bm-star-icon {
+  display: block;
   width: 24px;
   height: 24px;
-  display: block;
-  cursor: pointer;
-  opacity: 0.6;
-  transition: all 0.2s ease;
   filter: drop-shadow(0 1px 3px rgba(0, 0, 0, 0.3));
+  pointer-events: none;
+  user-select: none;
 }
 
-.bookmark-star-container:hover .bookmark-star {
+.ai-bm-star[data-bookmarked='true'] {
   opacity: 1;
-  transform: scale(1.15);
 }
 
-.bookmark-star-container:active .bookmark-star {
-  transform: scale(0.9);
+.ai-bm-star:hover {
+  opacity: 1;
+  transform: scale(1.12);
+  background-color: rgba(127, 127, 127, 0.16);
 }
 
-/* Highlight effect when navigating to bookmark */
-@keyframes bookmark-highlight {
+.ai-bm-star:active {
+  transform: scale(0.92);
+}
+
+.ai-bm-star:focus-visible {
+  opacity: 1;
+  outline: 2px solid #667eea;
+  outline-offset: 2px;
+}
+
+.ai-bm-star[disabled] {
+  cursor: progress;
+  opacity: 0.25;
+  transform: none;
+}
+
+/* Reveal on hover/focus of the surrounding turn to stay out of the way, but
+   keep bookmarked messages permanently marked. */
+@media (hover: hover) {
+  .ai-bm-star-container {
+    opacity: 0;
+    transition: opacity 0.15s ease;
+  }
+
+  /* Kept as separate rules: an unsupported selector invalidates its whole rule,
+     and these must degrade independently rather than hiding every star. */
+  *:hover > .ai-bm-star-container {
+    opacity: 1;
+  }
+
+  .ai-bm-star-container:focus-within {
+    opacity: 1;
+  }
+
+  .ai-bm-star-container[data-bookmarked='true'] {
+    opacity: 1;
+  }
+}
+
+/* Highlight effect when navigating to a bookmark */
+@keyframes ai-bm-highlight {
   0% {
-    background-color: rgba(255, 215, 0, 0.3);
+    background-color: rgba(255, 215, 0, 0.32);
     box-shadow: 0 0 0 0 rgba(255, 215, 0, 0.6);
   }
   50% {
@@ -46,29 +103,52 @@
   }
 }
 
-.bookmark-highlight {
-  animation: bookmark-highlight 2s ease-out;
+.ai-bm-highlight {
+  animation: ai-bm-highlight 2s ease-out;
   border-radius: 8px;
 }
 
-/* Platform-specific adjustments */
+@media (prefers-reduced-motion: reduce) {
+  .ai-bm-highlight {
+    animation-duration: 0.01ms;
+    outline: 2px solid rgba(255, 215, 0, 0.9);
+    outline-offset: 2px;
+  }
 
-/* ChatGPT - position near message header */
-article[data-testid^="conversation-turn"] .bookmark-star-container {
-  top: 12px;
-  right: 12px;
+  .ai-bm-star,
+  .ai-bm-star-container {
+    transition: none;
+  }
 }
 
-/* Claude - position near avatar area */
-[class*="font-claude-message"] .bookmark-star-container,
-[class*="MessageContent"] .bookmark-star-container {
-  top: 8px !important;
-  right: 8px !important;
+/* In-page toast used for storage failures */
+.ai-bm-toast {
+  position: fixed !important;
+  bottom: 24px;
+  left: 50%;
+  transform: translateX(-50%) translateY(8px);
+  z-index: 2147483001 !important;
+  max-width: 320px;
+  padding: 10px 16px;
+  border-radius: 8px;
+  background: rgba(20, 20, 24, 0.94);
+  color: #fff;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  font-size: 13px;
+  line-height: 1.4;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.2s ease, transform 0.2s ease;
 }
 
-/* DeepSeek - position in header area */
-div.message .bookmark-star-container,
-div[class*="message"] .bookmark-star-container {
-  top: 12px;
-  right: 12px;
+.ai-bm-toast.ai-bm-toast-visible {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
+}
+
+/* Platform-specific nudges */
+article[data-testid^='conversation-turn'] > .ai-bm-star-container {
+  top: 12px !important;
+  right: 12px !important;
 }

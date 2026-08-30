@@ -1,13 +1,25 @@
 {
   "name": "ai-bookmark",
-  "version": "1.0.0",
-  "description": "",
-  "main": "index.js",
+  "version": "1.1.0",
+  "description": "Browser extension for bookmarking and navigating messages on AI chat platforms",
+  "private": true,
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "node --test test/*.test.js",
+    "lint": "node scripts/lint.js",
+    "check": "npm run lint && npm test",
+    "smoke": "node test/smoke/browser-smoke.js"
   },
-  "keywords": [],
+  "keywords": [
+    "chrome-extension",
+    "bookmarks",
+    "chatgpt",
+    "claude",
+    "deepseek"
+  ],
   "author": "",
   "license": "ISC",
-  "type": "commonjs"
+  "type": "commonjs",
+  "devDependencies": {
+    "jsdom": "^30.0.1"
+  }
 }
